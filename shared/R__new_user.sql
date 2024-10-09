@@ -1,4 +1,6 @@
--- V1.0__create_random_user_and_grant_access.sql
+-- ${flyway:timestamp}
+
+-- R__create_random_user_and_grant_access.sql
 
 -- Ensure the extension for UUID is available
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -20,4 +22,6 @@ BEGIN
 
     -- Grant access to the current database
     EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', 'my_db1', user_name);
+
+    RAISE NOTICE 'User created: %', user_name;
 END $$;
