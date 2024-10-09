@@ -1,0 +1,87 @@
+name: "Database Migration"
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        default: squad1
+        type: choice
+        options:
+          - squad1
+          - squad2
+          - squad3
+          - production
+      database:
+        description: "Select database"
+        required: true
+        default: ""
+        type: string
+      baseline:
+        description: "Select baseline version"
+        required: true
+        default: "1.0"
+        type: string
+      action:
+        description: "Select action"
+        required: true
+        default: migrate
+        type: choice
+        options:
+          - migrate
+          - undo
+
+# Special permissions required for OIDC authentication
+permissions:
+  contents: read
+
+# These environment variables are used by the terraform azure provider to setup OIDD authenticate.
+env:
+  DB_NAME: ${{ github.event.inputs.database }}
+  BASELINE_VERSION: ${{ github.event.inputs.baseline }}
+  PREFIX: tysonngodemo
+  FLYWAY_VERSION: 10.19.0
+
+jobs:
+  run-flyway:
+    name: "Run Flyway"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set DB_SERVER dynamically
+        run: echo "DB_SERVER=${{ env.PREFIX }}-${{ github.event.inputs.environment }}-psql" >> $GITHUB_ENV
+
+      - name: Setup Flyway
+        run: |
+          wget -qO- https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${{ env.FLYWAY_VERSION }}/flyway-commandline-${{ env.FLYWAY_VERSION }}-linux-x64.tar.gz | tar -xvz && sudo ln -s `pwd`/flyway-${{ env.FLYWAY_VERSION }}/flyway /usr/local/bin
+
+      - name: Run Flyway migration
+        env:
+          FLYWAY_URL: jdbc:postgresql://${{ env.DB_SERVER }}.postgres.database.azure.com:5432/${{ env.DB_NAME }}
+          FLYWAY_USER: ${{ secrets.PSQL_DB_USER }}
+          FLYWAY_PASSWORD: ${{ secrets.PSQL_DB_PASSWORD }}
+          FLYWAY_LOCATIONS: filesystem:shared,filesystem:${{ env.DB_SERVER }}/${{ env.DB_NAME }}
+          FLYWAY_BASELINE_VERSION: ${{ env.BASELINE_VERSION }}
+        run: |
+          flyway -configFiles=flyway.conf ${{ github.event.inputs.action }}
+
+      - name: Publish migration result to Task Summary
+        env:
+          FLYWAY_URL: jdbc:postgresql://${{ env.DB_SERVER }}.postgres.database.azure.com:5432/${{ env.DB_NAME }}
+          FLYWAY_USER: ${{ secrets.PSQL_DB_USER }}
+          FLYWAY_PASSWORD: ${{ secrets.PSQL_DB_PASSWORD }}
+          FLYWAY_LOCATIONS: filesystem:shared,filesystem:${{ env.DB_SERVER }}/${{ env.DB_NAME }}
+          FLYWAY_BASELINE_VERSION: ${{ env.BASELINE_VERSION }}
+        run: |
+          flyway -configFiles=flyway.conf info > ./result.txt
+          cat ./result.txt >> $GITHUB_STEP_SUMMARY
