@@ -19,11 +19,5 @@ BEGIN
     EXECUTE format('CREATE USER %I WITH PASSWORD %L', user_name, 'some_secure_password');
 
     -- Grant access to the current database
-    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), user_name);
-
-    -- Optionally grant additional privileges
-    EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', user_name);
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %I', user_name);
-
-    RAISE NOTICE 'User created: %', user_name;
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', 'my_db1', user_name);
 END $$;
